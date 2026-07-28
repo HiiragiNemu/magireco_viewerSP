@@ -1,2 +1,1 @@
-Check the Cloudflare preview for feature/story-playback-local-web-revival.
-Retry after the deployment branch removed public/live2d_resources.
+Verify the deployed classic ADV preview, direct story entry, Live2D model CORS and HCA voice CORS.
