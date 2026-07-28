@@ -1,1 +1,2 @@
 Wait for and verify the redeployed classic ADV preview with same-origin /gamedata Live2D and HCA proxy.
+Retry after validation loop correction.
