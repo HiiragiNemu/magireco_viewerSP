@@ -1,0 +1,1 @@
+Trigger public-web-revival runtime validation with real HCA decode.
