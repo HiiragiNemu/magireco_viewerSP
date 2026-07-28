@@ -1,82 +1,23 @@
 {
-  "schema": 5,
-  "build": "full-story-catalog-v5-validated-voice-lifecycle-controls-font",
+  "schema": 6,
+  "build": "legacy-public-runtime-audit",
   "uiBase": "magireco_viewerSP/e0cee52ae5e9db1a97df50718260a5966de594fc",
   "storyRepository": "HiiragiNemu/magi-reader",
   "storyRevision": "65f221f2aaa5a9fe161ed32e03e4dfbb93d4746d",
-  "assetBase": "https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev",
-  "font": {
-    "path": "css/mbm_20160902.ttf",
-    "source": "Magia_CN_Project/totentanz_unpacked/assets/fonts/mbm_20160902.ttf",
-    "gitBlobSha": "88afff8991a0a5021f4303d781b346e0ea3758b1",
-    "rejectsDoubleExtension": true
+  "publicBranch": "gh-pages",
+  "validation": {
+    "status": "invalidated",
+    "reason": "Previous checks validated decoder bytes and mocked control handlers, but did not prove the public browser runtime. User browser testing showed that voice, AUTO and LOG remain non-functional.",
+    "knownFailures": [
+      "story voice does not play in the public runtime",
+      "AUTO control does not reliably advance",
+      "LOG control does not reliably open the backlog"
+    ],
+    "deploymentRule": "Do not publish the replacement runtime until a real Chromium test drives the public page, loads a real encrypted HCA cue, and verifies AUTO, SKIP and LOG through the actual DOM."
   },
-  "hca": {
-    "decoder": "cricodecs HCA WebAssembly bridge",
-    "wasmPath": "js/hca/hca_wasm_bg.wasm",
-    "gitBlobSha": "c98980029bbe5c1f8889d18ae5a40fdf33ca2f65",
-    "cipherType": 56,
-    "keycode": "0x01395C51",
-    "workerDecode": true,
-    "loopChunk": true,
-    "rmsLipSync": true
-  },
-  "features": {
-    "preservedOriginalWebUi": true,
-    "fullCatalog": true,
-    "currentMagiReaderIndexCompatibility": true,
-    "derivedSourceIdentity": true,
-    "chinesePreferredJapaneseFallback": true,
-    "sectionSelection": true,
-    "persistentSceneState": true,
-    "automaticNonDialogueSteps": true,
-    "branchChoices": true,
-    "leftCenterRightDialogue": true,
-    "avDialogue": true,
-    "narration": true,
-    "floatingNarration": true,
-    "live2d": true,
-    "modelReuseAndPositionReplacement": true,
-    "untrackedHomeModelReclamation": true,
-    "sceneRosterReconciliation": true,
-    "voiceFullFromCharacterPatch": true,
-    "voiceFullStopFromCharacterPatch": true,
-    "hcaVoiceBgmSeJingle": true,
-    "audioDurationAutoTiming": true,
-    "audioRmsLipSync": true,
-    "functionalLogControl": true,
-    "functionalAutoControl": true,
-    "functionalSkipControl": true,
-    "apkCoreChineseFont": true,
-    "items": true,
-    "armatureEventBridge": true,
-    "backgroundLocalR2Fallback": true,
-    "flash": true,
-    "shake": true,
-    "transitionTiming": true
-  },
-  "remoteValidation": {
-    "fontImportRun": 30372859634,
-    "fontImportConclusion": "success",
-    "runtimeSmokeRun": 30373665347,
-    "runtimeSmokeConclusion": "success",
-    "checks": [
-      "exact APK core font blob identity and font header",
-      "exact HCA WebAssembly blob identity and wasm header",
-      "all public runtime JavaScript syntax",
-      "real encrypted HCA voice download and RIFF/WAVE decode",
-      "homepage Live2D model reclamation",
-      "stale scene roster reclamation",
-      "LOG control open and close",
-      "AUTO control state and scheduling",
-      "legacy control handler removal",
-      "static HTTP delivery of font, HCA bridge and decoder"
-    ]
-  },
-  "pending": [
-    "render official armature particles instead of fallback symbols",
-    "movie and remaining rare opcode parity",
-    "exact official transition easing, layering and timing",
-    "server-provided scene manifests and authenticated asset routing"
-  ]
+  "activeFix": {
+    "branch": "fix/story-runtime-voice-auto-log",
+    "pullRequest": 4,
+    "publiclyDeployed": false
+  }
 }
