@@ -1,0 +1,81 @@
+name: Stage browser HCA decoder
+
+on:
+  push:
+    branches:
+      - public-web-revival
+    paths:
+      - ".github/workflows/stage-hca-decoder.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage-magireco-hca-decoder
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout public revival branch
+        uses: actions/checkout@v4
+        with:
+          ref: public-web-revival
+          fetch-depth: 1
+
+      - name: Download cricodecs package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cricodecs"
+          cd "$RUNNER_TEMP/cricodecs"
+          npm pack cricodecs@1.0.2
+          tar -tzf cricodecs-1.0.2.tgz > package-files.txt
+          cat package-files.txt
+
+      - name: Stage HCA wasm and license
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE="$RUNNER_TEMP/cricodecs/cricodecs-1.0.2.tgz"
+          WORK="$RUNNER_TEMP/cricodecs/unpacked"
+          mkdir -p "$WORK" js/hca
+          tar -xzf "$PACKAGE" -C "$WORK"
+          WASM="$(find "$WORK" -type f -path '*/hca-wasm/pkg/hca_wasm_bg.wasm' -print -quit)"
+          if [[ -z "$WASM" ]]; then
+            echo "hca_wasm_bg.wasm was not found in cricodecs@1.0.2" >&2
+            find "$WORK" -maxdepth 6 -type f -print >&2
+            exit 1
+          fi
+          cp "$WASM" js/hca/hca_wasm_bg.wasm
+          LICENSE="$(find "$WORK" -type f \( -iname 'LICENSE' -o -iname 'LICENSE.*' \) -print -quit)"
+          if [[ -n "$LICENSE" ]]; then cp "$LICENSE" js/hca/LICENSE.cricodecs; fi
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          path = Path('js/hca/hca_wasm_bg.wasm')
+          data = path.read_bytes()
+          if data[:4] != b'\x00asm':
+              raise SystemExit('invalid WebAssembly magic')
+          if len(data) < 10_000:
+              raise SystemExit(f'unexpectedly small WebAssembly file: {len(data)} bytes')
+          print('HCA wasm bytes:', len(data))
+          print('HCA wasm SHA-256:', hashlib.sha256(data).hexdigest())
+          PY
+
+      - name: Commit staged decoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/hca
+          if git diff --cached --quiet; then
+            echo "HCA decoder already staged."
+            exit 0
+          fi
+          git commit -m "Stage browser HCA decoder wasm"
+          git push origin HEAD:public-web-revival
