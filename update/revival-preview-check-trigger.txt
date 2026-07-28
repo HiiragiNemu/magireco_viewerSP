@@ -1,1 +1,2 @@
 Check the Cloudflare preview for feature/story-playback-local-web-revival.
+Retry after the deployment branch removed public/live2d_resources.
