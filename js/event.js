@@ -21,6 +21,7 @@
     .then(function () { return loadScript('./js/full_story_catalog_v2_loader.js'); })
     .then(function () { return window.__MagirecoFullStoryV2Ready; })
     .then(function () { return loadScript('./js/full_story_reliability_patch.js'); })
+    .then(function () { return loadScript('./js/story_runtime_v3.js'); })
     .then(function () {
       if (window.__installMagirecoReliabilityPatch) window.__installMagirecoReliabilityPatch();
       window.dispatchEvent(new CustomEvent('magireco:full-story-ready'));
