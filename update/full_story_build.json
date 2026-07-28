@@ -1,13 +1,15 @@
 {
-  "schema": 2,
-  "build": "full-story-catalog-v2",
+  "schema": 3,
+  "build": "full-story-catalog-v3",
   "uiBase": "magireco_viewerSP/e0cee52ae5e9db1a97df50718260a5966de594fc",
   "storyRepository": "HiiragiNemu/magi-reader",
-  "storyRevision": "c68110c495a895be77e349ae85fe36939974d7bc",
+  "storyRevision": "65f221f2aaa5a9fe161ed32e03e4dfbb93d4746d",
   "assetBase": "https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev",
   "features": {
     "preservedOriginalWebUi": true,
     "fullCatalog": true,
+    "currentMagiReaderIndexCompatibility": true,
+    "derivedSourceIdentity": true,
     "search": true,
     "categoryFilter": true,
     "pagination": true,
@@ -45,6 +47,8 @@
     "externalHcaPlayerBridge": true
   },
   "verified": {
+    "oldAndCurrentIndexShapesSupported": true,
+    "sampleSourceJsonHashStableAcrossRevision": true,
     "multipartRuntimeBlobShaMatches": true,
     "reconstructedSourceCharacters": 53567,
     "javascriptSyntaxCheck": "passed"
