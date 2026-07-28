@@ -1,0 +1,13 @@
+name: Validate story runtime v3 PR
+
+on:
+  pull_request:
+    branches:
+      - gh-pages
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate-story-runtime-v3.yml

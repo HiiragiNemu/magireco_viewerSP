@@ -1,0 +1,93 @@
+name: Validate story runtime v3
+
+on:
+  push:
+    branches:
+      - fix/story-runtime-voice-auto-log
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/story-runtime-voice-auto-log
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat js/full_story_v2/part-*.js > /tmp/full_story_catalog_v2.js
+          node --check /tmp/full_story_catalog_v2.js
+          node --check js/event.js
+          node --check js/story_runtime_v3.js
+          node --check js/hca/hca_audio.js
+          node --check js/hca/hca_worker.js
+          node --check tools/story_runtime_v3_e2e.mjs
+
+      - name: Download one real encrypted voice cue
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-fixtures
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output test-fixtures/sample.hca \
+            "https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev/fullvoice/section_101102/vo_full_101102-7-1_hca.hca"
+          python - <<'PY'
+          from pathlib import Path
+          data = Path('test-fixtures/sample.hca').read_bytes()
+          assert len(data) > 8
+          assert bytes(value & 0x7f for value in data[:4]) == b'HCA\x00'
+          print('sample HCA bytes:', len(data))
+          PY
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Browser test voice AUTO LOG and SKIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 >story-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/index.html >/dev/null; then break; fi
+            sleep 0.2
+          done
+          set +e
+          node tools/story_runtime_v3_e2e.mjs >story-runtime-v3-console.log 2>&1
+          code=$?
+          set -e
+          cat story-runtime-v3-console.log
+          exit "$code"
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-runtime-v3
+          path: |
+            story-runtime-v3.png
+            story-runtime-v3-result.json
+            story-runtime-v3-console.log
+            story-http.log
+          if-no-files-found: warn
