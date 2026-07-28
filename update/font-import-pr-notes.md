@@ -1,0 +1,1 @@
+Temporary workflow trigger only. The workflow checks out public-web-revival, downloads the public CN Magica resource release, verifies the exact single-extension APK font blob, and commits that binary to public-web-revival.
