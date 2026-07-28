@@ -6,6 +6,7 @@ on:
       - public-web-revival
     paths:
       - ".github/workflows/import-apk-font.yml"
+      - "update/font-import-trigger.txt"
   workflow_dispatch:
 
 permissions:
@@ -46,8 +47,9 @@ jobs:
           from hashlib import sha1
           from pathlib import Path, PurePosixPath
           from zipfile import ZipFile
+          import os
 
-          archive = Path(__import__('os').environ['RUNNER_TEMP']) / 'cn-resource' / 'cn_magica_resource.zip'
+          archive = Path(os.environ['RUNNER_TEMP']) / 'cn-resource' / 'cn_magica_resource.zip'
           destination = Path('css/mbm_20160902.ttf')
           with ZipFile(archive) as zf:
               names = [
