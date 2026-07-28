@@ -1,1 +1,2 @@
 Trigger public-web-revival runtime validation with real HCA decode.
+Retry: verify homepage model reclamation and LOG/AUTO control replacement.
