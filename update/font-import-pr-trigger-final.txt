@@ -1,2 +1,2 @@
 Final same-repository pull request trigger for verified core font import.
-Retry: select the exact Git blob from multiple archive candidates.
+Retry: search all public Release APK and resource archives, then select the exact Git blob.
