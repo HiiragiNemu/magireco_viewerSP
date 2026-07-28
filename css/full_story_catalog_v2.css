@@ -1,4 +1,38 @@
+@font-face {
+  font-family: "MagiaCoreCN";
+  src: url("./mbm_20160902.ttf") format("truetype");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
 @import url("./full_story_catalog.css");
+
+.story_page,
+.story_page p,
+.story_page button,
+.story_page input,
+.story_page select,
+#full-story-catalog,
+#full-story-catalog *,
+#full-log,
+#full-log *,
+#full-narration,
+#full-narration *,
+#full-choices,
+#full-choices * {
+  font-family: "MagiaCoreCN", "magi", "Microsoft YaHei", sans-serif !important;
+  font-synthesis: none;
+}
+
+#story_context_l,
+#story_context_c,
+#story_context_r,
+#full-narration-text,
+#full-log p {
+  letter-spacing: 0.015em;
+  text-rendering: geometricPrecision;
+}
 
 #full-items {
   position: absolute;
@@ -28,6 +62,15 @@
 
 .story_page {
   touch-action: manipulation;
+}
+
+#story_log,
+#story_auto,
+#story_skip {
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 #full-story-list .full-story-head,
