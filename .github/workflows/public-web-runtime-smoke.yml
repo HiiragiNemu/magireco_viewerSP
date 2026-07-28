@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - public-web-revival
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "update/runtime-smoke-pr-trigger.txt"
   workflow_dispatch:
 
 permissions:
@@ -22,6 +27,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: public-web-revival
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            index.html
+            js
+            css
+            tools
+            update
+          sparse-checkout-cone-mode: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -41,6 +55,8 @@ jobs:
           assert font[:4] in {b'\x00\x01\x00\x00', b'OTTO', b'true'}, font[:4]
           assert wasm[:4] == b'\x00asm', wasm[:4]
           assert not Path('css/mbm_20160902.ttf.ttf').exists()
+          print('font bytes:', len(font))
+          print('wasm bytes:', len(wasm))
           PY
 
       - name: Reconstruct and syntax-check the full story runtime
@@ -55,8 +71,9 @@ jobs:
           node --check js/full_story_reliability_patch.js
           node --check js/hca/hca_audio.js
           node --check js/hca/hca_worker.js
+          node --check tools/verify_hca_decoder.mjs
 
-      - name: Verify runtime wiring and known voice route
+      - name: Verify runtime wiring and decode a real voice cue
         shell: bash
         run: |
           set -euo pipefail
@@ -67,7 +84,6 @@ jobs:
           grep -q "fullvoice/fullvoice" js/hca/hca_audio.js
           grep -q "mbm_20160902.ttf" css/full_story_catalog_v2.css
           curl --fail --location --retry 4 --retry-delay 2 \
-            --range 0-511 \
             --output /tmp/sample.hca \
             "https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev/fullvoice/section_101102/vo_full_101102-7-1_hca.hca"
           python - <<'PY'
@@ -75,7 +91,12 @@ jobs:
           data = Path('/tmp/sample.hca').read_bytes()
           assert len(data) >= 8
           assert bytes(value & 0x7f for value in data[:4]) == b'HCA\x00', data[:4]
+          print('sample HCA bytes:', len(data))
           PY
+          node tools/verify_hca_decoder.mjs \
+            js/hca/hca_wasm_bg.wasm \
+            /tmp/sample.hca \
+            0x01395C51
 
       - name: Static HTTP smoke
         shell: bash
