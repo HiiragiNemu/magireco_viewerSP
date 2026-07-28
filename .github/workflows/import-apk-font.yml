@@ -7,6 +7,11 @@ on:
     paths:
       - ".github/workflows/import-apk-font.yml"
       - "update/font-import-trigger.txt"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "update/font-import-pr-trigger.txt"
   workflow_dispatch:
 
 permissions:
