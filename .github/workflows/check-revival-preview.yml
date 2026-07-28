@@ -14,57 +14,44 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     env:
       PREVIEW_ORIGIN: https://validation-classic-adv-runti.magiaexedralive2dviewer.pages.dev
-      IMMUTABLE_PREVIEW: https://856892f0.magiaexedralive2dviewer.pages.dev
-      R2: https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev
     steps:
-      - name: Verify deployed page and direct story entry
+      - name: Wait for classic ADV page and same-origin asset proxy
         shell: bash
         run: |
           set -euo pipefail
-          for base in "$PREVIEW_ORIGIN" "$IMMUTABLE_PREVIEW"; do
-            curl --fail --location --retry 5 --retry-delay 3 --connect-timeout 20 \
-              --dump-header /tmp/page-headers.txt \
-              --output /tmp/page.html \
-              "$base/?story=1"
-            grep -Eq "Magia Exedra Live2D Viewer|live2d-wrapper|toggleAdvPanelBtn" /tmp/page.html
-            echo "page=$base bytes=$(wc -c </tmp/page.html)"
-          done
-
-      - name: Verify R2 CORS for Live2D and encrypted voice
-        shell: bash
-        run: |
-          set -euo pipefail
-          check_cors() {
-            local url="$1"
-            local output="$2"
-            curl --fail --location --retry 4 --retry-delay 2 \
-              -H "Origin: $PREVIEW_ORIGIN" \
-              --dump-header "$output.headers" \
-              --output "$output.body" \
-              "$url"
-            cat "$output.headers"
-            python - "$output.headers" "$PREVIEW_ORIGIN" <<'PY'
-          from pathlib import Path
-          import sys
-          headers = Path(sys.argv[1]).read_text(encoding='latin-1').lower()
-          origin = sys.argv[2].lower()
-          values = [line.split(':', 1)[1].strip() for line in headers.splitlines() if line.startswith('access-control-allow-origin:')]
-          if not values or not any(value in {'*', origin} for value in values):
-              raise SystemExit(f'CORS origin not allowed: {values!r}')
-          PY
-          }
-          check_cors "$R2/live2d_v4/200100/model.model3.json" /tmp/model
-          check_cors "$R2/fullvoice/section_101102/vo_full_101102-7-1_hca.hca" /tmp/voice
-          python - <<'PY'
+          model_url="$PREVIEW_ORIGIN/gamedata/live2d_v4/200100/model.model3.json"
+          voice_url="$PREVIEW_ORIGIN/gamedata/fullvoice/section_101102/vo_full_101102-7-1_hca.hca"
+          for attempt in {1..60}; do
+            page_code="$(curl --location --silent --show-error --connect-timeout 20 --max-time 45 \
+              --output /tmp/page.html --write-out '%{http_code}' "$PREVIEW_ORIGIN/?story=1" || true)"
+            model_code="$(curl --location --silent --show-error --connect-timeout 20 --max-time 45 \
+              --dump-header /tmp/model.headers --output /tmp/model.body --write-out '%{http_code}' "$model_url" || true)"
+            voice_code="$(curl --location --silent --show-error --connect-timeout 20 --max-time 60 \
+              --range 0-511 --dump-header /tmp/voice.headers --output /tmp/voice.body --write-out '%{http_code}' "$voice_url" || true)"
+            echo "attempt=$attempt page=$page_code model=$model_code voice=$voice_code"
+            if [ "$page_code" = "200" ] && [ "$model_code" = "200" ] && { [ "$voice_code" = "200" ] || [ "$voice_code" = "206" ]; }; then
+              grep -Eq "Magia Exedra Live2D Viewer|live2d-wrapper|toggleAdvPanelBtn" /tmp/page.html
+              grep -qi '^x-magia-asset-proxy: r2' /tmp/model.headers
+              grep -qi '^x-magia-asset-proxy: r2' /tmp/voice.headers
+              python - <<'PY'
           from pathlib import Path
           import json
           model = json.loads(Path('/tmp/model.body').read_text(encoding='utf-8'))
           assert model.get('Version') == 3
           voice = Path('/tmp/voice.body').read_bytes()
-          assert len(voice) > 8
+          assert len(voice) >= 8
           assert bytes(value & 0x7f for value in voice[:4]) == b'HCA\x00'
-          print('model and HCA payloads verified')
+          print('same-origin model and HCA proxy verified')
           PY
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Classic preview or /gamedata proxy did not become ready."
+          echo '--- page head ---'; head -c 500 /tmp/page.html 2>/dev/null || true
+          echo '--- model headers ---'; cat /tmp/model.headers 2>/dev/null || true
+          echo '--- voice headers ---'; cat /tmp/voice.headers 2>/dev/null || true
+          exit 1
