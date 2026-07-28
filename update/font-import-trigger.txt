@@ -1,0 +1,2 @@
+Import the verified single-extension mbm_20160902.ttf from magireco-cn-patch release latest.
+Trigger revision: 2026-07-28-v1
