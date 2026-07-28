@@ -1,0 +1,31 @@
+name: Check full-game revival preview
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "update/revival-preview-check-trigger.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check Cloudflare branch preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://feature-full-game-web-revival.magiaexedralive2dviewer.pages.dev/?story=1"
+          curl --fail --location --retry 12 --retry-delay 5 --connect-timeout 20 \
+            --dump-header /tmp/headers.txt \
+            --output /tmp/revival.html \
+            "$url"
+          cat /tmp/headers.txt
+          test -s /tmp/revival.html
+          grep -Eq "Magia Exedra Live2D Viewer|live2d-wrapper|toggleAdvPanelBtn" /tmp/revival.html
+          echo "Preview bytes: $(wc -c </tmp/revival.html)"
