@@ -67,6 +67,13 @@ jobs:
           node --check js/hca/hca_audio.js
           node --check js/hca/hca_worker.js
           node --check tools/verify_hca_decoder.mjs
+          node --check tools/verify_reliability_patch.mjs
+
+      - name: Verify model reclamation and LOG AUTO controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/verify_reliability_patch.mjs
 
       - name: Verify runtime wiring and decode a real voice cue
         shell: bash
