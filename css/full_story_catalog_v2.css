@@ -1,0 +1,40 @@
+@import url("./full_story_catalog.css");
+
+#full-items {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.full-story-item {
+  position: absolute;
+  max-width: 100%;
+  max-height: 100%;
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+#full-screen-fx {
+  transform: translateX(0);
+  will-change: opacity, transform;
+}
+
+#full-narration {
+  pointer-events: auto;
+}
+
+.story_page {
+  touch-action: manipulation;
+}
+
+#full-story-list .full-story-head,
+#full-story-list .full-section {
+  -webkit-tap-highlight-color: transparent;
+}
+
+#full-story-status.bad {
+  overflow-wrap: anywhere;
+}
