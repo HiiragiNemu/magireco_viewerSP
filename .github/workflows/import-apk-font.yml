@@ -12,6 +12,10 @@ on:
       - master
     paths:
       - "update/font-import-pr-trigger.txt"
+      - "update/font-import-pr-trigger-2.txt"
+      - "update/font-import-pr-trigger-final.txt"
+      - "update/.font-import-pr"
+      - "update/font-import-workflow-context.json"
   workflow_dispatch:
 
 permissions:
@@ -19,7 +23,7 @@ permissions:
 
 concurrency:
   group: import-apk-core-font
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   import-font:
@@ -33,6 +37,10 @@ jobs:
         with:
           ref: public-web-revival
           fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            css
+          sparse-checkout-cone-mode: true
 
       - name: Download CN Magica resource release
         shell: bash
@@ -54,8 +62,13 @@ jobs:
           from zipfile import ZipFile
           import os
 
+          EXPECTED = '88afff8991a0a5021f4303d781b346e0ea3758b1'
           archive = Path(os.environ['RUNNER_TEMP']) / 'cn-resource' / 'cn_magica_resource.zip'
           destination = Path('css/mbm_20160902.ttf')
+
+          def git_blob_sha(data: bytes) -> str:
+              return sha1(f'blob {len(data)}\0'.encode('ascii') + data).hexdigest()
+
           with ZipFile(archive) as zf:
               names = [
                   name for name in zf.namelist()
@@ -64,17 +77,22 @@ jobs:
               ]
               if not names:
                   raise SystemExit('mbm_20160902.ttf was not found in the release archive')
-              payloads = [(name, zf.read(name)) for name in names]
-          valid = [(name, data) for name, data in payloads if data[:4] in {b'\x00\x01\x00\x00', b'OTTO', b'true'}]
-          if not valid:
-              raise SystemExit('no candidate has a valid TrueType/OpenType header')
-          hashes = {sha1(data).hexdigest() for _, data in valid}
-          if len(hashes) != 1:
-              raise SystemExit(f'conflicting single-extension font payloads: {[(n, len(d)) for n, d in valid]}')
+              candidates = []
+              for name in names:
+                  data = zf.read(name)
+                  if data[:4] not in {b'\x00\x01\x00\x00', b'OTTO', b'true'}:
+                      continue
+                  candidates.append((name, data, git_blob_sha(data)))
+
+          for name, data, digest in candidates:
+              print(f'candidate: {name} bytes={len(data)} blob={digest}')
+          matches = [(name, data) for name, data, digest in candidates if digest == EXPECTED]
+          if not matches:
+              raise SystemExit(f'expected APK core font blob {EXPECTED} was not found')
           destination.parent.mkdir(parents=True, exist_ok=True)
-          destination.write_bytes(valid[0][1])
-          print('source:', valid[0][0])
-          print('bytes:', len(valid[0][1]))
+          destination.write_bytes(matches[0][1])
+          print('selected:', matches[0][0])
+          print('bytes:', len(matches[0][1]))
           PY
           test "$(git hash-object css/mbm_20160902.ttf)" = "88afff8991a0a5021f4303d781b346e0ea3758b1"
           test ! -e css/mbm_20160902.ttf.ttf
