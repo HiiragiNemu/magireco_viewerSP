@@ -24,6 +24,25 @@ jobs:
           set -euo pipefail
           model_url="$PREVIEW_ORIGIN/gamedata/live2d_v4/200100/model.model3.json"
           voice_url="$PREVIEW_ORIGIN/gamedata/fullvoice/section_101102/vo_full_101102-7-1_hca.hca"
+          valid_payloads() {
+            grep -Eq "Magia Exedra Live2D Viewer|live2d-wrapper|toggleAdvPanelBtn" /tmp/page.html || return 1
+            grep -qi '^x-magia-asset-proxy: r2' /tmp/model.headers || return 1
+            grep -qi '^x-magia-asset-proxy: r2' /tmp/voice.headers || return 1
+            python - <<'PY'
+          from pathlib import Path
+          import json
+          try:
+              model = json.loads(Path('/tmp/model.body').read_text(encoding='utf-8'))
+              assert model.get('Version') == 3
+              voice = Path('/tmp/voice.body').read_bytes()
+              assert len(voice) >= 8
+              assert bytes(value & 0x7f for value in voice[:4]) == b'HCA\x00'
+          except Exception as error:
+              print(f'payload validation pending: {error}')
+              raise SystemExit(1)
+          print('same-origin model and HCA proxy verified')
+          PY
+          }
           for attempt in {1..60}; do
             page_code="$(curl --location --silent --show-error --connect-timeout 20 --max-time 45 \
               --output /tmp/page.html --write-out '%{http_code}' "$PREVIEW_ORIGIN/?story=1" || true)"
@@ -32,20 +51,7 @@ jobs:
             voice_code="$(curl --location --silent --show-error --connect-timeout 20 --max-time 60 \
               --range 0-511 --dump-header /tmp/voice.headers --output /tmp/voice.body --write-out '%{http_code}' "$voice_url" || true)"
             echo "attempt=$attempt page=$page_code model=$model_code voice=$voice_code"
-            if [ "$page_code" = "200" ] && [ "$model_code" = "200" ] && { [ "$voice_code" = "200" ] || [ "$voice_code" = "206" ]; }; then
-              grep -Eq "Magia Exedra Live2D Viewer|live2d-wrapper|toggleAdvPanelBtn" /tmp/page.html
-              grep -qi '^x-magia-asset-proxy: r2' /tmp/model.headers
-              grep -qi '^x-magia-asset-proxy: r2' /tmp/voice.headers
-              python - <<'PY'
-          from pathlib import Path
-          import json
-          model = json.loads(Path('/tmp/model.body').read_text(encoding='utf-8'))
-          assert model.get('Version') == 3
-          voice = Path('/tmp/voice.body').read_bytes()
-          assert len(voice) >= 8
-          assert bytes(value & 0x7f for value in voice[:4]) == b'HCA\x00'
-          print('same-origin model and HCA proxy verified')
-          PY
+            if [ "$page_code" = "200" ] && [ "$model_code" = "200" ] && { [ "$voice_code" = "200" ] || [ "$voice_code" = "206" ]; } && valid_payloads; then
               exit 0
             fi
             sleep 10
