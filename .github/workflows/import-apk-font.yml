@@ -1,0 +1,89 @@
+name: Import verified APK core font
+
+on:
+  push:
+    branches:
+      - public-web-revival
+    paths:
+      - ".github/workflows/import-apk-font.yml"
+      - "update/font-import-trigger.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-apk-core-font
+  cancel-in-progress: false
+
+jobs:
+  import-font:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout public runtime
+        uses: actions/checkout@v4
+        with:
+          ref: public-web-revival
+          fetch-depth: 1
+
+      - name: Download CN Magica resource release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cn-resource"
+          gh release download latest \
+            --repo HiiragiNemu/magireco-cn-patch \
+            --pattern "cn_magica_resource.zip" \
+            --dir "$RUNNER_TEMP/cn-resource"
+
+      - name: Extract exact single-extension core font
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from hashlib import sha1
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import os
+
+          archive = Path(os.environ['RUNNER_TEMP']) / 'cn-resource' / 'cn_magica_resource.zip'
+          destination = Path('css/mbm_20160902.ttf')
+          with ZipFile(archive) as zf:
+              names = [
+                  name for name in zf.namelist()
+                  if PurePosixPath(name).name == 'mbm_20160902.ttf'
+                  and not name.lower().endswith('.ttf.ttf')
+              ]
+              if not names:
+                  raise SystemExit('mbm_20160902.ttf was not found in the release archive')
+              payloads = [(name, zf.read(name)) for name in names]
+          valid = [(name, data) for name, data in payloads if data[:4] in {b'\x00\x01\x00\x00', b'OTTO', b'true'}]
+          if not valid:
+              raise SystemExit('no candidate has a valid TrueType/OpenType header')
+          hashes = {sha1(data).hexdigest() for _, data in valid}
+          if len(hashes) != 1:
+              raise SystemExit(f'conflicting single-extension font payloads: {[(n, len(d)) for n, d in valid]}')
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          destination.write_bytes(valid[0][1])
+          print('source:', valid[0][0])
+          print('bytes:', len(valid[0][1]))
+          PY
+          test "$(git hash-object css/mbm_20160902.ttf)" = "88afff8991a0a5021f4303d781b346e0ea3758b1"
+          test ! -e css/mbm_20160902.ttf.ttf
+
+      - name: Commit verified font
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add css/mbm_20160902.ttf
+          if git diff --cached --quiet; then
+            echo "Verified font is already present."
+            exit 0
+          fi
+          git commit -m "加入 APK 核心中文字体"
+          git push origin HEAD:public-web-revival
