@@ -5,6 +5,7 @@ on:
     branches:
       - fix/story-runtime-voice-auto-log
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
