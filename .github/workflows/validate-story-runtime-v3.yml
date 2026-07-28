@@ -1,0 +1,151 @@
+name: Validate story runtime v3
+
+on:
+  push:
+    branches:
+      - fix/story-runtime-voice-auto-log
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/story-runtime-voice-auto-log
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat js/full_story_v2/part-*.js > /tmp/full_story_catalog_v2.js
+          node --check /tmp/full_story_catalog_v2.js
+          node --check js/event.js
+          node --check js/story_runtime_v3.js
+          node --check js/hca/hca_audio.js
+          node --check js/hca/hca_worker.js
+
+      - name: Download one real encrypted voice cue
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-fixtures
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output test-fixtures/sample.hca \
+            "https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev/fullvoice/section_101102/vo_full_101102-7-1_hca.hca"
+          python - <<'PY'
+          from pathlib import Path
+          data = Path('test-fixtures/sample.hca').read_bytes()
+          assert len(data) > 8
+          assert bytes(value & 0x7f for value in data[:4]) == b'HCA\x00'
+          print('sample HCA bytes:', len(data))
+          PY
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Browser test voice AUTO LOG and SKIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 >/tmp/story-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          cat > /tmp/story-v3-e2e.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { readFile } from 'node:fs/promises';
+
+          const sample = await readFile('test-fixtures/sample.hca');
+          const browser = await chromium.launch({
+            headless: true,
+            args: ['--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader'],
+          });
+          const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+          const errors = [];
+          const voiceRequests = [];
+          page.on('pageerror', error => errors.push(String(error)));
+          page.on('console', message => {
+            if (message.type() === 'error') errors.push(message.text());
+          });
+          await page.route('https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev/fullvoice/**', async route => {
+            voiceRequests.push(route.request().url());
+            await route.fulfill({ status: 200, contentType: 'application/octet-stream', body: sample });
+          });
+
+          await page.goto('http://127.0.0.1:4173/index.html', { waitUntil: 'domcontentloaded', timeout: 120000 });
+          await page.waitForFunction(() => Boolean(window.MagirecoFullStory?.player?.__storyRuntimeV3Installed), null, { timeout: 120000 });
+
+          await page.evaluate(() => {
+            const player = window.MagirecoFullStory.player;
+            player.load({
+              story: {
+                group_1: [
+                  {
+                    nameCenter: '语音验证',
+                    textCenter: '第一句真实 HCA 语音验证。',
+                    voiceFull: 'section_101102/vo_full_101102-7-1',
+                    autoTurnLast: 0.1,
+                  },
+                  {
+                    nameCenter: '系统',
+                    textCenter: 'AUTO 已推进到第二句。',
+                  },
+                ],
+              },
+            }, 'runtime-v3-e2e');
+          });
+
+          await page.click('#story_auto');
+          await page.waitForFunction(() => window.MagirecoFullStory.player.auto === true || window.MagirecoFullStory.player.autoEnabled === true);
+          await page.waitForFunction(() => window.MagirecoHcaPlayer?.isPlaying?.('voice') === true, null, { timeout: 120000 });
+          if (!voiceRequests.length) throw new Error('No HCA voice request was observed');
+
+          await page.click('#story_log');
+          const logOpen = await page.locator('#full-log').evaluate(node => !node.hidden);
+          if (!logOpen) throw new Error('LOG did not open');
+          const logText = await page.locator('#full-log-body').innerText();
+          if (!logText.includes('第一句真实 HCA 语音验证')) throw new Error(`LOG missing dialogue: ${logText}`);
+          await page.click('#full-log-close');
+          const logClosed = await page.locator('#full-log').evaluate(node => node.hidden);
+          if (!logClosed) throw new Error('LOG did not close');
+
+          await page.click('#story_skip');
+          const skipActive = await page.locator('#story_skip').evaluate(node => node.classList.contains('full-active'));
+          if (!skipActive) throw new Error('SKIP did not activate');
+          await page.click('#story_skip');
+
+          await page.waitForFunction(() => window.MagirecoFullStory.player.index >= 1, null, { timeout: 120000 });
+          const autoActive = await page.locator('#story_auto').evaluate(node => node.classList.contains('full-active'));
+          if (!autoActive) throw new Error('AUTO visual state was lost');
+
+          const fatal = errors.filter(value => !/favicon|Failed to load resource.*404/i.test(value));
+          if (fatal.length) throw new Error(`Browser errors: ${JSON.stringify(fatal.slice(0, 10))}`);
+          console.log(JSON.stringify({ voiceRequests: voiceRequests.length, log: true, auto: true, skip: true }, null, 2));
+          await page.screenshot({ path: 'story-runtime-v3.png', fullPage: true });
+          await browser.close();
+          JS
+          node /tmp/story-v3-e2e.mjs
+
+      - name: Upload test screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-runtime-v3
+          path: story-runtime-v3.png
+          if-no-files-found: ignore
