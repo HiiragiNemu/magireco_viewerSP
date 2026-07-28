@@ -1,0 +1,94 @@
+name: Public Web Runtime Smoke
+
+on:
+  push:
+    branches:
+      - public-web-revival
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-web-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout public runtime
+        uses: actions/checkout@v4
+        with:
+          ref: public-web-revival
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify copied binary identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object css/mbm_20160902.ttf)" = "88afff8991a0a5021f4303d781b346e0ea3758b1"
+          test "$(git hash-object js/hca/hca_wasm_bg.wasm)" = "c98980029bbe5c1f8889d18ae5a40fdf33ca2f65"
+          python - <<'PY'
+          from pathlib import Path
+          font = Path('css/mbm_20160902.ttf').read_bytes()
+          wasm = Path('js/hca/hca_wasm_bg.wasm').read_bytes()
+          assert font[:4] in {b'\x00\x01\x00\x00', b'OTTO', b'true'}, font[:4]
+          assert wasm[:4] == b'\x00asm', wasm[:4]
+          assert not Path('css/mbm_20160902.ttf.ttf').exists()
+          PY
+
+      - name: Reconstruct and syntax-check the full story runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat js/full_story_v2/part-*.js > /tmp/full_story_catalog_v2.js
+          node --check /tmp/full_story_catalog_v2.js
+          node --check js/event.js
+          node --check js/full_story_fetch_patch.js
+          node --check js/full_story_catalog_v2_loader.js
+          node --check js/full_story_reliability_patch.js
+          node --check js/hca/hca_audio.js
+          node --check js/hca/hca_worker.js
+
+      - name: Verify runtime wiring and known voice route
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "hca/hca_audio.js" js/event.js
+          grep -q "full_story_reliability_patch.js" js/event.js
+          grep -q "MagirecoHcaPlayer" js/hca/hca_audio.js
+          grep -q "voiceFull" js/full_story_v2/part-04.js
+          grep -q "fullvoice/fullvoice" js/hca/hca_audio.js
+          grep -q "mbm_20160902.ttf" css/full_story_catalog_v2.css
+          curl --fail --location --retry 4 --retry-delay 2 \
+            --range 0-511 \
+            --output /tmp/sample.hca \
+            "https://pub-70a248f1a6fe4ca597e7a10f8b95dfd8.r2.dev/fullvoice/section_101102/vo_full_101102-7-1_hca.hca"
+          python - <<'PY'
+          from pathlib import Path
+          data = Path('/tmp/sample.hca').read_bytes()
+          assert len(data) >= 8
+          assert bytes(value & 0x7f for value in data[:4]) == b'HCA\x00', data[:4]
+          PY
+
+      - name: Static HTTP smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/index.html >/tmp/index.html; then break; fi
+            sleep 0.2
+          done
+          grep -q "js/event.js" /tmp/index.html
+          curl -fsS http://127.0.0.1:4173/js/hca/hca_audio.js >/dev/null
+          curl -fsS http://127.0.0.1:4173/js/hca/hca_wasm_bg.wasm >/dev/null
+          curl -fsS http://127.0.0.1:4173/css/mbm_20160902.ttf >/dev/null
