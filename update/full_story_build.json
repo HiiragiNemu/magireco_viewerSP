@@ -1,6 +1,6 @@
 {
-  "schema": 4,
-  "build": "full-story-catalog-v4-voice-lifecycle-controls-font",
+  "schema": 5,
+  "build": "full-story-catalog-v5-validated-voice-lifecycle-controls-font",
   "uiBase": "magireco_viewerSP/e0cee52ae5e9db1a97df50718260a5966de594fc",
   "storyRepository": "HiiragiNemu/magi-reader",
   "storyRevision": "65f221f2aaa5a9fe161ed32e03e4dfbb93d4746d",
@@ -54,6 +54,24 @@
     "flash": true,
     "shake": true,
     "transitionTiming": true
+  },
+  "remoteValidation": {
+    "fontImportRun": 30372859634,
+    "fontImportConclusion": "success",
+    "runtimeSmokeRun": 30373665347,
+    "runtimeSmokeConclusion": "success",
+    "checks": [
+      "exact APK core font blob identity and font header",
+      "exact HCA WebAssembly blob identity and wasm header",
+      "all public runtime JavaScript syntax",
+      "real encrypted HCA voice download and RIFF/WAVE decode",
+      "homepage Live2D model reclamation",
+      "stale scene roster reclamation",
+      "LOG control open and close",
+      "AUTO control state and scheduling",
+      "legacy control handler removal",
+      "static HTTP delivery of font, HCA bridge and decoder"
+    ]
   },
   "pending": [
     "render official armature particles instead of fallback symbols",
