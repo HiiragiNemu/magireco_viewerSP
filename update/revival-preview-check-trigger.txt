@@ -1,0 +1,1 @@
+Check whether the Cloudflare preview for feature/full-game-web-revival is publicly reachable and serves the focused Live2D viewer.
